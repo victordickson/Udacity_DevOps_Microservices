@@ -1,29 +1,25 @@
 from flask import Flask, request, jsonify
-from flask.logging import create_logger
 import logging
-
 import pandas as pd
-from sklearn.externals import joblib
-from sklearn.preprocessing import StandardScaler
+import joblib
+
 
 app = Flask(__name__)
-LOG = create_logger(app)
-LOG.setLevel(logging.INFO)
 
-def scale(payload):
-    """Scales Payload"""
-    
-    LOG.info(f"Scaling Payload: \n{payload}")
-    scaler = StandardScaler().fit(payload.astype(float))
-    scaled_adhoc_predict = scaler.transform(payload.astype(float))
-    return scaled_adhoc_predict
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger()
+
 
 @app.route("/")
 def home():
-    html = f"<h3>Sklearn Prediction Home</h3>"
+    html = "<h3>Model Prediction Home</h3>"
     return html.format(format)
 
-@app.route("/predict", methods=['POST'])
+
+@app.route("/predict", methods=["POST"])
 def predict():
     """Performs an sklearn prediction
         
@@ -49,24 +45,24 @@ def predict():
         }
         
         result looks like:
-        { "prediction": [ <val> ] }
+        { "prediction": [ 1 ] }
         
         """
     
     # Logging the input payload
+    try:
+        clf = joblib.load("model.joblib")
+    except Exception as e:
+        logger.error(e)
+        return "Model not loaded"
+
     json_payload = request.json
-    LOG.info(f"JSON payload: \n{json_payload}")
+    logger.info(f"JSON payload: {json_payload}")
     inference_payload = pd.DataFrame(json_payload)
-    LOG.info(f"Inference payload DataFrame: \n{inference_payload}")
-    # scale the input
-    scaled_payload = scale(inference_payload)
-    # get an output prediction from the pretrained model, clf
-    prediction = list(clf.predict(scaled_payload))
-    # TO DO:  Log the output prediction value
-    LOG.info(f"prediction: {prediction}")
-    return jsonify({'prediction': prediction})
+    prediction = list(clf.predict(inference_payload))
+    prediction = [int(x) for x in prediction]
+    logger.info(f"prediction: {prediction}")
+    return jsonify({"prediction": prediction})
 
 if __name__ == "__main__":
-    # load pretrained model as clf
-    clf = joblib.load("./model_data/boston_housing_prediction.joblib")
-    app.run(host='0.0.0.0', port=80, debug=True) # specify port=80
+    app.run(host='0.0.0.0', port=5000, debug=True) # specify port=80
